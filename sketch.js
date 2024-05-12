@@ -20,13 +20,19 @@ const is_valid_alert = (alert) =>
 const is_end_alert = (alert) =>
   alert != Alerts.None;
 
+let best_score = 0.0;
 
 const closest_center_distance = 0.05;
 const end_dist = 1;
 const closest_distance_to_last_point = 1;
 const thickness = 2;
 
+const sign = Math.sign;
 const get_mouse_pos = () => [mouseX - width / 2, mouseY - height / 2];
+const angle_dif = (x1, y1, x2, y2) => atan2(y1, x1) - atan2(y2, x2);
+const is_clockwise = (...args) => angle_dif(...args) < 0;
+const transposed_angle_dif = (x1, y1, x2, y2) => atan2(x1, y1) - atan2(x2, y2);
+const get_percentage_str = (percentage, point) => `${ floor(percentage * 100) }${ point }${ abs(floor(percentage * 1000 % 10)) }%`;
 
 function preload() {
   fx = loadShader("shaders/default.vert", "shaders/accuracy.frag");
@@ -48,13 +54,15 @@ function draw() {
   // Get mouse data
   const mouse_pos = get_mouse_pos();
   const mouse_dist_from_center = Math.sqrt(mouse_pos[0] * mouse_pos[0] + mouse_pos[1] * mouse_pos[1])
-  
+
   // Draw the background
   background(0);
   
+
   // Controls
   if (mouseIsPressed) {
     const has_ended = is_end_alert(disp_alert);
+    const clockwise = drawn.length >= 2 ? is_clockwise(...drawn[0], ...drawn[1]) : null;
 
     // Start
     if (has_ended && !mouse_was_pressed) {
@@ -69,12 +77,21 @@ function draw() {
         disp_alert = Alerts.None;
       }
     }
-    // Reached end (use an angle based method instead)
-    else if (drawn.length > 1 && dist(...drawn[0], ...mouse_pos) < end_dist) {
+    // Test whether or not the user's going in the wrong direction
+    else if (
+      clockwise != null &&
+      (clockwise ? 1 : -1) * angle_dif(...drawn[drawn.length - 1], ...mouse_pos) > 0 &&
+      (clockwise ? -1 : 1) * transposed_angle_dif(...drawn[drawn.length - 1], ...mouse_pos) > 0
+    ) {
+      disp_alert = Alerts.WrongWay;
+    }
+    // Reached end
+    else if (clockwise != null && clockwise != is_clockwise(...drawn[0], ...drawn[drawn.length - 1]) && clockwise == is_clockwise(...drawn[0], ...mouse_pos)) {
+      drawn.push(mouse_pos);
       disp_alert = Alerts.Best;
     }
     // Continue
-    else if (drawn.length > 0 && dist(...drawn[drawn.length - 1], ...mouse_pos) > closest_distance_to_last_point) {
+    else if (!has_ended && drawn.length > 0 && dist(...drawn[drawn.length - 1], ...mouse_pos) > closest_distance_to_last_point) {
       drawn.push(mouse_pos);
     }
 
@@ -141,17 +158,17 @@ function draw() {
     const in_y_range = y_dist <= 0.0;
 
     if (in_x_range && in_y_range)
-        distance = -(x_dist > y_dist ? x_dist : y_dist) / apothem;
+        distance = -(x_dist > y_dist ? x_dist : y_dist);
     else if (in_x_range)
-        distance = y_dist / apothem;
+        distance = y_dist;
     else if (in_y_range)
-        distance = x_dist / apothem;
+        distance = x_dist;
     else
-        distance = sqrt(x_dist * x_dist + y_dist * y_dist) / apothem;
+        distance = sqrt(x_dist * x_dist + y_dist * y_dist);
 
-    distance *= 2.0;
+    distance *= 1.0 / apothem;
 
-    score += (1.0 - distance) / drawn.length
+    score += (1.0 - min(distance, 1.0)) / drawn.length
   }
 
   // Draw foreground
@@ -175,7 +192,7 @@ function draw() {
 
     const score_str = 
       valid ?
-      `${ floor(score * 100) } ${ abs(floor(score * 1000 % 10)) }%` :
+      get_percentage_str(score, ' ') :
       "XX X%";
     text(score_str, (valid ? 0.085 : 0.09) * width, 0.015 * width);
 
@@ -191,8 +208,13 @@ function draw() {
         alert_text = "";
         break;
       case Alerts.Best:
-        // Detect whether it's a new best or not
-        alert_text = `Best: `;
+        const new_record = score > best_score;
+        alert_text = "";
+        if (new_record) {
+          best_score = score;
+          alert_text += "New ";
+        }
+        alert_text += `Best: ${ get_percentage_str(best_score, '.') }`
         break;
       case Alerts.DrawCircle:
         alert_text = "Start drawing a square around this point";

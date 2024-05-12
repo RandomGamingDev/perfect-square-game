@@ -29,15 +29,15 @@ void main() {
     bool in_y_range = y_dist <= 0.0;
 
     if (in_x_range && in_y_range)
-        dist = -(x_dist > y_dist ? x_dist : y_dist) / apothem;
+        dist = -(x_dist > y_dist ? x_dist : y_dist);
     else if (in_x_range)
-        dist = y_dist / apothem;
+        dist = y_dist;
     else if (in_y_range)
-        dist = x_dist / apothem;
+        dist = x_dist;
     else
-        dist = sqrt(x_dist * x_dist + y_dist * y_dist) / apothem;
+        dist = sqrt(x_dist * x_dist + y_dist * y_dist);
 
-    dist *= 2.0;
+    dist *= 2.0 / apothem;
 
     /*
     0.0: GREEN
